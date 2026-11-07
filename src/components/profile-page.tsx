@@ -18,9 +18,18 @@
  *   - Button         → @/components/ui/button
  */
 
-import { useState, useSyncExternalStore } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { Plus, RotateCcw } from "lucide-react";
+import {
+  addDoc,
+  collection,
+  onSnapshot,
+  orderBy,
+  query,
+  serverTimestamp,
+} from "firebase/firestore";
 
+import { db } from "@/lib/firebase";
 import { MOCK_DATA, type LinkItem, type MyLinkData } from "@/lib/mock-data";
 import { ProfileAvatar } from "@/components/ui/profile-avatar";
 import { SocialIconButton } from "@/components/ui/social-icon-button";
@@ -30,6 +39,7 @@ import { Button } from "@/components/ui/button";
 import { AddLinkDialog, type AddLinkFormData } from "@/components/add-link-dialog";
 
 const STORAGE_KEY = "mylink";
+const FIRESTORE_LINKS_PATH = "users/anonymous/links";
 
 // ─── 헬퍼: localStorage 읽기/쓰기 및 동기화 스토어 ─────────────────────────────
 
@@ -84,10 +94,22 @@ function resetData() {
   saveData(MOCK_DATA);
 }
 
+function mergeLinks(localLinks: LinkItem[], remoteLinks: LinkItem[]): LinkItem[] {
+  const linkMap = new Map<string, LinkItem>();
+  for (const link of localLinks) {
+    linkMap.set(link.id, link);
+  }
+  for (const link of remoteLinks) {
+    linkMap.set(link.id, link);
+  }
+  return Array.from(linkMap.values());
+}
+
 // ─── 메인 컴포넌트 ────────────────────────────────────────────────────────────
 
 export default function ProfilePage() {
   const data = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
+  const [firestoreLinks, setFirestoreLinks] = useState<LinkItem[]>([]);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
 
@@ -96,40 +118,86 @@ export default function ProfilePage() {
     setTimeout(() => setToastMessage(null), 2500);
   };
 
+  // Firestore(users/anonymous/links) 실시간 구독
+  useEffect(() => {
+    const linksRef = collection(db, FIRESTORE_LINKS_PATH);
+    const q = query(linksRef, orderBy("order", "asc"));
+
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        const fetchedLinks: LinkItem[] = snapshot.docs.map((docSnap, idx) => {
+          const docData = docSnap.data();
+          return {
+            id: docSnap.id,
+            title: docData.title ?? "",
+            url: docData.url ?? "",
+            emoji: docData.emoji || undefined,
+            isActive: docData.isActive ?? true,
+            order:
+              typeof docData.order === "number"
+                ? docData.order
+                : MOCK_DATA.links.length + idx + 1,
+          };
+        });
+        setFirestoreLinks(fetchedLinks);
+      },
+      (error) => {
+        console.error("Firestore 링크 목록 구독 오류:", error);
+      }
+    );
+
+    return () => unsubscribe();
+  }, []);
+
   const handleReset = () => {
     resetData();
     showToast("초기 데이터로 복원되었습니다");
   };
 
-  const handleAddLink = (formData: AddLinkFormData) => {
+  const handleAddLink = async (formData: AddLinkFormData) => {
     if (!data) return;
 
+    const mergedLinks = mergeLinks(data.links, firestoreLinks);
     const nextOrder =
-      data.links.length > 0
-        ? Math.max(...data.links.map((l) => l.order)) + 1
+      mergedLinks.length > 0
+        ? Math.max(...mergedLinks.map((l) => l.order)) + 1
         : 1;
 
-    const newLink: LinkItem = {
-      id: `link-${Date.now()}`,
-      title: formData.title,
-      url: formData.url,
-      emoji: formData.emoji,
-      isActive: formData.isActive,
-      order: nextOrder,
-    };
+    try {
+      const linksRef = collection(db, FIRESTORE_LINKS_PATH);
+      const docRef = await addDoc(linksRef, {
+        title: formData.title,
+        url: formData.url,
+        emoji: formData.emoji ?? "",
+        isActive: formData.isActive,
+        order: nextOrder,
+        createdAt: serverTimestamp(),
+      });
 
-    const updatedData: MyLinkData = {
-      ...data,
-      links: [...data.links, newLink],
-    };
+      const newLink: LinkItem = {
+        id: docRef.id,
+        title: formData.title,
+        url: formData.url,
+        emoji: formData.emoji,
+        isActive: formData.isActive,
+        order: nextOrder,
+      };
 
-    saveData(updatedData);
+      setFirestoreLinks((prev) =>
+        prev.some((l) => l.id === newLink.id) ? prev : [...prev, newLink]
+      );
 
-    showToast(
-      formData.isActive
-        ? "새 링크가 추가되었습니다!"
-        : "비공개 링크가 추가되었습니다 (퍼블릭 뷰 숨김)"
-    );
+      showToast(
+        formData.isActive
+          ? "새 링크가 Firestore에 추가되었습니다!"
+          : "비공개 링크가 Firestore에 추가되었습니다 (퍼블릭 뷰 숨김)"
+      );
+    } catch (error) {
+      console.error("Firestore 링크 추가 실패:", error);
+      showToast("링크 저장 중 오류가 발생했습니다. 다시 시도해주세요.");
+      throw error;
+    }
   };
 
   // 데이터 로드 전 최소 플레이스홀더 — 레이아웃 시프트 방지
@@ -141,7 +209,8 @@ export default function ProfilePage() {
     );
   }
 
-  const { profile, links } = data;
+  const { profile } = data;
+  const links = mergeLinks(data.links, firestoreLinks);
 
   // isActive: true 인 링크만, order 오름차순 정렬 (PRD §3.3, §2.3)
   const activeLinks = links

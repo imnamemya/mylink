@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useForm, Controller, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { AlertCircle, CheckCircle2, Plus, Sparkles } from "lucide-react";
+import { AlertCircle, CheckCircle2, Loader2, Plus, Sparkles } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -84,7 +84,7 @@ export type AddLinkFormData = z.infer<typeof addLinkSchema>;
 interface AddLinkDialogProps {
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
-  onAddLink: (data: AddLinkFormData) => void;
+  onAddLink: (data: AddLinkFormData) => Promise<void> | void;
   trigger?: React.ReactNode;
 }
 
@@ -112,7 +112,7 @@ export function AddLinkDialog({
     control,
     reset,
     setValue,
-    formState: { errors },
+    formState: { errors, isSubmitting },
   } = useForm<AddLinkFormData>({
     resolver: zodResolver(addLinkSchema),
     mode: "onChange",
@@ -140,19 +140,20 @@ export function AddLinkDialog({
   }
 
   const handleOpenChange = (nextOpen: boolean) => {
+    if (isSubmitting) return;
     if (!nextOpen) {
       reset();
     }
     setOpen(nextOpen);
   };
 
-  const onSubmit = (data: AddLinkFormData) => {
+  const onSubmit = async (data: AddLinkFormData) => {
     let finalUrl = data.url.trim();
     if (!/^[a-zA-Z][a-zA-Z\d+\-.]*:/.test(finalUrl)) {
       finalUrl = `https://${finalUrl}`;
     }
 
-    onAddLink({
+    await onAddLink({
       title: data.title.trim(),
       url: finalUrl,
       emoji: data.emoji?.trim() || undefined,
@@ -324,14 +325,22 @@ export function AddLinkDialog({
                 <Button
                   type="button"
                   variant="outline"
+                  disabled={isSubmitting}
                   onClick={() => handleOpenChange(false)}
                 >
                   취소
                 </Button>
               }
             />
-            <Button type="submit">
-              추가하기
+            <Button type="submit" disabled={isSubmitting}>
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="size-4 animate-spin" />
+                  저장 중...
+                </>
+              ) : (
+                "추가하기"
+              )}
             </Button>
           </DialogFooter>
         </form>

@@ -1,5 +1,6 @@
 import { initializeApp, getApps, getApp, type FirebaseApp } from "firebase/app";
 import { getAnalytics, isSupported, type Analytics } from "firebase/analytics";
+import { getFirestore, type Firestore } from "firebase/firestore";
 
 // Firebase 설정 객체 (환경 변수 사용)
 const firebaseConfig = {
@@ -15,6 +16,9 @@ const firebaseConfig = {
 // Next.js HMR(Fast Refresh) 및 중복 초기화 방지
 const app: FirebaseApp = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 
+// Firestore 인스턴스 초기화
+const db: Firestore = getFirestore(app);
+
 // Next.js SSR 환경에서 Analytics 실행 시 window 객체 미존재 오류 방지
 let analytics: Analytics | null = null;
 
@@ -26,5 +30,5 @@ if (typeof window !== "undefined") {
   });
 }
 
-export { app, analytics, firebaseConfig };
+export { app, db, analytics, firebaseConfig };
 export default app;
