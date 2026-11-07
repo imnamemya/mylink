@@ -1,44 +1,195 @@
 @import url("https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css");
 @import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+/* ════════════════════════════════════════════════════════════════
+ * Kurly Design System — DESIGN.md 실측값 (검증: 2026-07-13)
+ *
+ * 색상 출처: 컬리 커머스 라이브 캡처 (home / category-list / new-products)
+ * 폰트 출처: 761개 visible 샘플 → Pretendard, SIL OFL 1.1
+ * 반경 출처: xs 2px / sm 4px (product-list-control 실측)
+ * 그림자 출처: category-tab, product-list-control, article wrapper 모두 none
+ * ════════════════════════════════════════════════════════════════ */
 
 :root {
-  --background: #ffffff;
-  --foreground: #333333;
-  --kurly-primary: #5f0080;
-  --kurly-body: #464c52;
-  --kurly-muted: #999999;
-  --kurly-border: #dfe4eb;
-  --kurly-border-light: #e2e2e2;
-  --kurly-control-bg: #f7f7f7;
-  --kurly-control-muted: #b5b5b5;
+  /* ── 1. Kurly 원본 디자인 토큰 (참조용) ───────────────────────
+   *  컴포넌트에서 직접 사용하지 말고 shadcn 토큰을 경유할 것     */
+  --kurly-primary:        #5f0080;  /* 활성 액센트 (category-tab selected, header-nav hover) */
+  --kurly-canvas:         #ffffff;  /* 페이지/컨트롤 배경 */
+  --kurly-foreground:     #333333;  /* 주요 텍스트 */
+  --kurly-body:           #464c52;  /* header-nav 기본 색, 본문 강조 */
+  --kurly-muted:          #999999;  /* 비활성/보조 텍스트 */
+  --kurly-border:         #dfe4eb;  /* 1px 컨트롤 테두리 */
+  --kurly-border-alt:     #e2e2e2;  /* outline-button 테두리 */
+  --kurly-control-bg:     #f7f7f7;  /* compact-list-control 배경 */
+  --kurly-control-muted:  #b5b5b5;  /* compact-list-control 텍스트 */
+
+  /* ── 2. 폰트 ───────────────────────────────────────────────────
+   * Pretendard: 761개 샘플 실측, Kurly 호스팅 FontFace 소스 확인
+   * letter-spacing -0.3px: form-input 실측 (-0.33px), 전체 적용   */
+  --font-sans:    'Pretendard', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-heading: 'Pretendard', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-mono:    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+
+  /* ── 3. shadcn/ui 시맨틱 토큰 → Kurly 실측값 연결 ─────────────
+   *  Tailwind 유틸리티(bg-background, text-foreground 등)가
+   *  이 값들을 참조하여 Kurly 디자인을 자동 반영합니다.          */
+
+  /* 배경 / 텍스트 */
+  --background:            #ffffff;    /* kurly-canvas */
+  --foreground:            #333333;    /* kurly-foreground */
+
+  /* 카드 */
+  --card:                  #ffffff;
+  --card-foreground:       #333333;    /* kurly-foreground */
+
+  /* 팝오버 */
+  --popover:               #ffffff;
+  --popover-foreground:    #333333;
+
+  /* Primary — Kurly 액센트 퍼플 */
+  --primary:               #5f0080;   /* kurly-primary */
+  --primary-foreground:    #ffffff;
+
+  /* Secondary — Kurly control 배경 */
+  --secondary:             #f7f7f7;   /* kurly-control-bg */
+  --secondary-foreground:  #333333;   /* kurly-foreground */
+
+  /* Muted — Kurly 비활성 */
+  --muted:                 #f7f7f7;   /* kurly-control-bg */
+  --muted-foreground:      #999999;   /* kurly-muted */
+
+  /* Accent — Kurly body 텍스트 계열 */
+  --accent:                #f7f7f7;   /* kurly-control-bg */
+  --accent-foreground:     #464c52;   /* kurly-body */
+
+  /* 위험 */
+  --destructive:           oklch(0.577 0.245 27.325);
+
+  /* 테두리 / 입력 */
+  --border:                #dfe4eb;   /* kurly-border (product-list-control 1px 실측) */
+  --input:                 #dfe4eb;   /* kurly-border */
+  --ring:                  #5f0080;   /* kurly-primary (focus ring) */
+
+  /* ── 4. 반경 ───────────────────────────────────────────────────
+   * DESIGN.md: xs 2px / sm 4px
+   * --radius = 4px (sm) 기준으로 스케일 계산:
+   *   --radius-sm  = 4 × 0.6 = 2.4px ≈ xs(2px)
+   *   --radius-lg  = 4px            = sm(4px)   ← 버튼·카드 기본값
+   *   --radius-2xl = 4 × 1.8 = 7.2px            ← 플로팅 카드 컨테이너
+   * product-list-article(0px)은 rounded-none으로 직접 지정              */
+  --radius: 4px;
+
+  /* ── 5. 차트 (shadcn 기본값 유지, 명세 외 범위) */
+  --chart-1: oklch(0.87 0 0);
+  --chart-2: oklch(0.556 0 0);
+  --chart-3: oklch(0.439 0 0);
+  --chart-4: oklch(0.371 0 0);
+  --chart-5: oklch(0.269 0 0);
+
+  /* ── 6. 사이드바 (Kurly 색상 체계로 연결) */
+  --sidebar:                   #ffffff;
+  --sidebar-foreground:        #333333;
+  --sidebar-primary:           #5f0080;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent:            #f7f7f7;
+  --sidebar-accent-foreground: #464c52;
+  --sidebar-border:            #dfe4eb;
+  --sidebar-ring:              #5f0080;
 }
 
+/* ── Tailwind @theme: CSS 변수 → 유틸리티 클래스 매핑 ─────────────────── */
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --color-kurly-primary: var(--kurly-primary);
-  --color-kurly-body: var(--kurly-body);
-  --color-kurly-muted: var(--kurly-muted);
-  --color-kurly-border: var(--kurly-border);
-  --color-kurly-border-light: var(--kurly-border-light);
-  --color-kurly-control-bg: var(--kurly-control-bg);
-  --color-kurly-control-muted: var(--kurly-control-muted);
-  --font-sans: 'Pretendard', var(--font-geist-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  /* 색상 */
+  --color-background:               var(--background);
+  --color-foreground:               var(--foreground);
+  --color-card:                     var(--card);
+  --color-card-foreground:          var(--card-foreground);
+  --color-popover:                  var(--popover);
+  --color-popover-foreground:       var(--popover-foreground);
+  --color-primary:                  var(--primary);
+  --color-primary-foreground:       var(--primary-foreground);
+  --color-secondary:                var(--secondary);
+  --color-secondary-foreground:     var(--secondary-foreground);
+  --color-muted:                    var(--muted);
+  --color-muted-foreground:         var(--muted-foreground);
+  --color-accent:                   var(--accent);
+  --color-accent-foreground:        var(--accent-foreground);
+  --color-destructive:              var(--destructive);
+  --color-border:                   var(--border);
+  --color-input:                    var(--input);
+  --color-ring:                     var(--ring);
+  --color-chart-1:                  var(--chart-1);
+  --color-chart-2:                  var(--chart-2);
+  --color-chart-3:                  var(--chart-3);
+  --color-chart-4:                  var(--chart-4);
+  --color-chart-5:                  var(--chart-5);
+
+  /* Kurly 원본 토큰도 Tailwind 클래스로 노출 (bg-kurly-primary 등) */
+  --color-kurly-primary:        var(--kurly-primary);
+  --color-kurly-canvas:         var(--kurly-canvas);
+  --color-kurly-foreground:     var(--kurly-foreground);
+  --color-kurly-body:           var(--kurly-body);
+  --color-kurly-muted:          var(--kurly-muted);
+  --color-kurly-border:         var(--kurly-border);
+  --color-kurly-border-alt:     var(--kurly-border-alt);
+  --color-kurly-control-bg:     var(--kurly-control-bg);
+  --color-kurly-control-muted:  var(--kurly-control-muted);
+
+  /* 사이드바 */
+  --color-sidebar:                      var(--sidebar);
+  --color-sidebar-foreground:           var(--sidebar-foreground);
+  --color-sidebar-primary:              var(--sidebar-primary);
+  --color-sidebar-primary-foreground:   var(--sidebar-primary-foreground);
+  --color-sidebar-accent:               var(--sidebar-accent);
+  --color-sidebar-accent-foreground:    var(--sidebar-accent-foreground);
+  --color-sidebar-border:               var(--sidebar-border);
+  --color-sidebar-ring:                 var(--sidebar-ring);
+
+  /* 폰트 — Pretendard를 font-sans / font-heading으로 등록 */
+  --font-sans:    var(--font-sans);
+  --font-heading: var(--font-heading);
+  --font-mono:    var(--font-mono);
+
+  /* 반경 스케일 (--radius = 4px 기준) */
+  --radius-sm:  calc(var(--radius) * 0.5);   /* 2px  ≈ DESIGN.md xs */
+  --radius-md:  calc(var(--radius) * 0.75);  /* 3px  ≈ outline-button */
+  --radius-lg:  var(--radius);               /* 4px  = DESIGN.md sm  */
+  --radius-xl:  calc(var(--radius) * 2);     /* 8px */
+  --radius-2xl: calc(var(--radius) * 3);     /* 12px */
+  --radius-3xl: calc(var(--radius) * 4);     /* 16px */
+  --radius-4xl: calc(var(--radius) * 6);     /* 24px ← 플로팅 카드 컨테이너 */
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: 'Pretendard', var(--font-geist-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  letter-spacing: -0.3px;
-  -webkit-font-smoothing: antialiased;
+/* ── 전역 베이스 ───────────────────────────────────────────────────────── */
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    /* Pretendard: Kurly UI 패밀리 토큰 적용 */
+    @apply font-sans;
+    /* letter-spacing: form-input 실측 -0.33px, 전체 -0.3px 적용 */
+    letter-spacing: -0.3px;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
 }
 
-/* Kurly Design System: Box shadows are none */
+/* ── Kurly Design System: 그림자 없음 ─────────────────────────────────────
+ * DESIGN.md: category-tab, product-list-control, article wrapper 모두
+ * box-shadow: none 실측 → 전역 강제 적용                                  */
 * {
   box-shadow: none !important;
 }
 
+/* ── 애니메이션 ────────────────────────────────────────────────────────── */
 @keyframes fadeIn {
   from {
     opacity: 0;
@@ -52,4 +203,39 @@ body {
 
 .animate-fadeIn {
   animation: fadeIn 0.2s ease-out forwards;
+}
+
+/* ── 다크 모드 (DESIGN.md 미명세 — 추후 확장 시 별도 디자인 토큰 필요) ── */
+.dark {
+  --background:            oklch(0.145 0 0);
+  --foreground:            oklch(0.985 0 0);
+  --card:                  oklch(0.205 0 0);
+  --card-foreground:       oklch(0.985 0 0);
+  --popover:               oklch(0.205 0 0);
+  --popover-foreground:    oklch(0.985 0 0);
+  --primary:               oklch(0.78 0.18 300);  /* 다크모드 Kurly 퍼플 (밝게) */
+  --primary-foreground:    oklch(0.145 0 0);
+  --secondary:             oklch(0.269 0 0);
+  --secondary-foreground:  oklch(0.985 0 0);
+  --muted:                 oklch(0.269 0 0);
+  --muted-foreground:      oklch(0.708 0 0);
+  --accent:                oklch(0.269 0 0);
+  --accent-foreground:     oklch(0.985 0 0);
+  --destructive:           oklch(0.704 0.191 22.216);
+  --border:                oklch(1 0 0 / 10%);
+  --input:                 oklch(1 0 0 / 15%);
+  --ring:                  oklch(0.78 0.18 300);
+  --chart-1:               oklch(0.87 0 0);
+  --chart-2:               oklch(0.556 0 0);
+  --chart-3:               oklch(0.439 0 0);
+  --chart-4:               oklch(0.371 0 0);
+  --chart-5:               oklch(0.269 0 0);
+  --sidebar:               oklch(0.205 0 0);
+  --sidebar-foreground:    oklch(0.985 0 0);
+  --sidebar-primary:       oklch(0.78 0.18 300);
+  --sidebar-primary-foreground: oklch(0.145 0 0);
+  --sidebar-accent:        oklch(0.269 0 0);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border:        oklch(1 0 0 / 10%);
+  --sidebar-ring:          oklch(0.78 0.18 300);
 }
