@@ -1,7 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Sparkles } from "lucide-react";
+import { useForm, Controller, useWatch } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import { AlertCircle, CheckCircle2, Plus, Sparkles } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -18,15 +21,65 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 
-// 자주 사용하는 추천 이모지 목록
+// ─── 추천 이모지 목록 ─────────────────────────────────────────────────────────
+
 const PRESET_EMOJIS = ["🔗", "📝", "☕", "💼", "📺", "🚀", "💬", "📸", "🎨", "🌐", "🎵", "🛍️"];
 
-export interface AddLinkFormData {
-  title: string;
-  url: string;
-  emoji?: string;
-  isActive: boolean;
-}
+// ─── Zod 스키마 정의 ──────────────────────────────────────────────────────────
+
+export const addLinkSchema = z.object({
+  title: z
+    .string()
+    .trim()
+    .min(1, "링크 제목을 입력해주세요.")
+    .min(2, "제목은 최소 2자 이상 입력해주세요.")
+    .max(50, "제목은 최대 50자까지 입력 가능합니다."),
+  url: z
+    .string()
+    .trim()
+    .min(1, "링크 주소(URL)를 입력해주세요.")
+    .refine((val) => !/\s/.test(val), "URL에는 공백이 포함될 수 없습니다.")
+    .refine((val) => {
+      // mailto: 지원
+      if (/^mailto:/i.test(val)) {
+        const email = val.replace(/^mailto:/i, "").split("?")[0];
+        return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+      }
+      // tel: 지원
+      if (/^tel:/i.test(val)) {
+        return /^\+?[\d\s-]{3,}$/.test(val.replace(/^tel:/i, ""));
+      }
+      // 웹 주소 프로토콜 및 도메인 검증
+      let target = val;
+      if (!/^[a-zA-Z][a-zA-Z\d+\-.]*:\/\//.test(target)) {
+        target = `https://${target}`;
+      }
+      try {
+        const parsed = new URL(target);
+        if (!["http:", "https:"].includes(parsed.protocol)) return false;
+        return parsed.hostname.includes(".") || parsed.hostname === "localhost";
+      } catch {
+        return false;
+      }
+    }, "올바른 URL 형식(예: https://example.com 또는 notion.so/portfolio)을 입력해주세요."),
+  emoji: z
+    .string()
+    .trim()
+    .optional()
+    .refine((val) => {
+      if (!val) return true;
+      return !/[a-zA-Z0-9]/.test(val);
+    }, "영문이나 숫자 대신 이모지 또는 기호를 입력해주세요.")
+    .refine((val) => {
+      if (!val) return true;
+      return [...val].length <= 2;
+    }, "이모지는 최대 2개까지 입력 가능합니다."),
+  isActive: z.boolean(),
+});
+
+export type AddLinkFormData = z.infer<typeof addLinkSchema>;
+
+// ─── 컴포넌트 Props ──────────────────────────────────────────────────────────
 
 interface AddLinkDialogProps {
   open?: boolean;
@@ -52,66 +105,62 @@ export function AddLinkDialog({
     onOpenChange?.(val);
   };
 
-  const [title, setTitle] = useState("");
-  const [url, setUrl] = useState("");
-  const [emoji, setEmoji] = useState("🔗");
-  const [isActive, setIsActive] = useState(true);
-  const [errors, setErrors] = useState<{ title?: string; url?: string }>({});
+  // React Hook Form + Zod 설정
+  const {
+    register,
+    handleSubmit,
+    control,
+    reset,
+    setValue,
+    formState: { errors },
+  } = useForm<AddLinkFormData>({
+    resolver: zodResolver(addLinkSchema),
+    mode: "onChange",
+    defaultValues: {
+      title: "",
+      url: "",
+      emoji: "🔗",
+      isActive: true,
+    },
+  });
 
-  const resetForm = () => {
-    setTitle("");
-    setUrl("");
-    setEmoji("🔗");
-    setIsActive(true);
-    setErrors({});
-  };
+  const watchedTitle = useWatch({ control, name: "title", defaultValue: "" }) || "";
+  const watchedUrl = useWatch({ control, name: "url", defaultValue: "" }) || "";
+  const watchedEmoji = useWatch({ control, name: "emoji", defaultValue: "🔗" }) || "";
+
+  // 유효한 URL 입력 시 연결될 최종 주소 미리보기 계산
+  let urlPreview = "";
+  if (watchedUrl.trim() && !errors.url) {
+    const trimmed = watchedUrl.trim();
+    if (/^[a-zA-Z][a-zA-Z\d+\-.]*:/.test(trimmed)) {
+      urlPreview = trimmed;
+    } else {
+      urlPreview = `https://${trimmed}`;
+    }
+  }
 
   const handleOpenChange = (nextOpen: boolean) => {
     if (!nextOpen) {
-      resetForm();
+      reset();
     }
     setOpen(nextOpen);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-
-    const newErrors: { title?: string; url?: string } = {};
-    const trimmedTitle = title.trim();
-    let trimmedUrl = url.trim();
-
-    if (!trimmedTitle) {
-      newErrors.title = "링크 제목을 입력해주세요.";
-    }
-
-    if (!trimmedUrl) {
-      newErrors.url = "URL을 입력해주세요.";
-    } else {
-      // http/https 또는 mailto/tel 등이 없으면 자동으로 https:// 붙이기
-      if (!/^[a-zA-Z][a-zA-Z\d+\-.]*:/.test(trimmedUrl)) {
-        trimmedUrl = `https://${trimmedUrl}`;
-      }
-
-      try {
-        new URL(trimmedUrl);
-      } catch {
-        newErrors.url = "올바른 URL 형식(예: https://example.com)을 입력해주세요.";
-      }
-    }
-
-    if (Object.keys(newErrors).length > 0) {
-      setErrors(newErrors);
-      return;
+  const onSubmit = (data: AddLinkFormData) => {
+    let finalUrl = data.url.trim();
+    if (!/^[a-zA-Z][a-zA-Z\d+\-.]*:/.test(finalUrl)) {
+      finalUrl = `https://${finalUrl}`;
     }
 
     onAddLink({
-      title: trimmedTitle,
-      url: trimmedUrl,
-      emoji: emoji.trim() || undefined,
-      isActive,
+      title: data.title.trim(),
+      url: finalUrl,
+      emoji: data.emoji?.trim() || undefined,
+      isActive: data.isActive,
     });
 
-    handleOpenChange(false);
+    reset();
+    setOpen(false);
   };
 
   return (
@@ -124,33 +173,43 @@ export function AddLinkDialog({
             새 링크 추가
           </DialogTitle>
           <DialogDescription>
-            프로필 페이지에 노출할 새로운 링크 정보를 입력해주세요.
+            React Hook Form과 Zod로 실시간 검증되는 링크 추가 폼입니다.
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4 py-2">
-          {/* 링크 제목 입력 */}
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 py-2" noValidate>
+          {/* ── 링크 제목 필드 (RHF register) ── */}
           <div className="space-y-1.5">
-            <Label htmlFor="link-title" className="text-xs font-semibold">
-              링크 제목 <span className="text-destructive">*</span>
-            </Label>
+            <div className="flex items-center justify-between">
+              <Label htmlFor="link-title" className="text-xs font-semibold">
+                링크 제목 <span className="text-destructive">*</span>
+              </Label>
+              <span
+                className={`text-[11px] tabular-nums ${
+                  watchedTitle.length > 50
+                    ? "text-destructive font-semibold"
+                    : "text-muted-foreground"
+                }`}
+              >
+                {watchedTitle.length}/50자
+              </span>
+            </div>
             <Input
               id="link-title"
               placeholder="예: 내 노션 포트폴리오, 인스타그램 등"
-              value={title}
-              onChange={(e) => {
-                setTitle(e.target.value);
-                if (errors.title) setErrors((prev) => ({ ...prev, title: undefined }));
-              }}
+              {...register("title")}
               aria-invalid={!!errors.title}
               autoFocus
             />
-            {errors.title && (
-              <p className="text-xs text-destructive">{errors.title}</p>
+            {errors.title?.message && (
+              <p className="flex items-center gap-1 text-xs text-destructive mt-1">
+                <AlertCircle className="size-3.5 shrink-0" />
+                {errors.title.message}
+              </p>
             )}
           </div>
 
-          {/* URL 입력 */}
+          {/* ── 링크 URL 필드 (RHF register) ── */}
           <div className="space-y-1.5">
             <Label htmlFor="link-url" className="text-xs font-semibold">
               링크 주소 (URL) <span className="text-destructive">*</span>
@@ -158,16 +217,20 @@ export function AddLinkDialog({
             <Input
               id="link-url"
               type="text"
-              placeholder="https://example.com"
-              value={url}
-              onChange={(e) => {
-                setUrl(e.target.value);
-                if (errors.url) setErrors((prev) => ({ ...prev, url: undefined }));
-              }}
+              placeholder="예: https://example.com 또는 notion.so/portfolio"
+              {...register("url")}
               aria-invalid={!!errors.url}
             />
-            {errors.url ? (
-              <p className="text-xs text-destructive">{errors.url}</p>
+            {errors.url?.message ? (
+              <p className="flex items-center gap-1 text-xs text-destructive mt-1">
+                <AlertCircle className="size-3.5 shrink-0" />
+                {errors.url.message}
+              </p>
+            ) : urlPreview ? (
+              <p className="flex items-center gap-1 text-[11px] text-emerald-600 dark:text-emerald-400 mt-1">
+                <CheckCircle2 className="size-3 shrink-0" />
+                연결 주소: <span className="font-mono">{urlPreview}</span>
+              </p>
             ) : (
               <p className="text-[11px] text-muted-foreground">
                 접두사 없이 입력 시 자동으로 https://가 추가됩니다.
@@ -175,18 +238,18 @@ export function AddLinkDialog({
             )}
           </div>
 
-          {/* 이모지 선택 / 입력 */}
+          {/* ── 아이콘 / 이모지 필드 (RHF register & setValue) ── */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <Label htmlFor="link-emoji" className="text-xs font-semibold flex items-center gap-1">
                 <Sparkles className="size-3.5 text-muted-foreground" />
                 아이콘 / 이모지
               </Label>
-              {emoji && (
+              {watchedEmoji && (
                 <button
                   type="button"
-                  onClick={() => setEmoji("")}
-                  className="text-[11px] text-muted-foreground hover:text-foreground transition-colors"
+                  onClick={() => setValue("emoji", "", { shouldValidate: true })}
+                  className="text-[11px] text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
                 >
                   지우기
                 </button>
@@ -197,19 +260,24 @@ export function AddLinkDialog({
               <Input
                 id="link-emoji"
                 placeholder="예: 🔗"
-                value={emoji}
-                onChange={(e) => setEmoji(e.target.value)}
+                {...register("emoji")}
                 className="w-20 text-center text-lg"
                 maxLength={4}
+                aria-invalid={!!errors.emoji}
               />
               <div className="flex-1 flex flex-wrap gap-1 items-center">
                 {PRESET_EMOJIS.map((preset) => (
                   <button
                     key={preset}
                     type="button"
-                    onClick={() => setEmoji(preset)}
-                    className={`size-7 rounded-md text-sm flex items-center justify-center transition-all ${
-                      emoji === preset
+                    onClick={() =>
+                      setValue("emoji", preset, {
+                        shouldValidate: true,
+                        shouldDirty: true,
+                      })
+                    }
+                    className={`size-7 rounded-md text-sm flex items-center justify-center transition-all cursor-pointer ${
+                      watchedEmoji === preset
                         ? "bg-primary text-primary-foreground scale-110 shadow-xs"
                         : "bg-muted/70 hover:bg-muted text-foreground"
                     }`}
@@ -219,9 +287,15 @@ export function AddLinkDialog({
                 ))}
               </div>
             </div>
+            {errors.emoji?.message && (
+              <p className="flex items-center gap-1 text-xs text-destructive mt-1">
+                <AlertCircle className="size-3.5 shrink-0" />
+                {errors.emoji.message}
+              </p>
+            )}
           </div>
 
-          {/* 활성화 (공개) 토글 */}
+          {/* ── 활성화 (공개) 토글 (RHF Controller) ── */}
           <div className="flex items-center justify-between rounded-lg border border-border/80 bg-muted/30 p-3">
             <div className="space-y-0.5">
               <Label htmlFor="link-active" className="text-xs font-medium cursor-pointer">
@@ -231,10 +305,16 @@ export function AddLinkDialog({
                 비활성화 시 퍼블릭 프로필에서 숨겨집니다.
               </p>
             </div>
-            <Switch
-              id="link-active"
-              checked={isActive}
-              onCheckedChange={setIsActive}
+            <Controller
+              name="isActive"
+              control={control}
+              render={({ field }) => (
+                <Switch
+                  id="link-active"
+                  checked={field.value}
+                  onCheckedChange={field.onChange}
+                />
+              )}
             />
           </div>
 
