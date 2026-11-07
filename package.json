@@ -4,10 +4,10 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build --webpack",
+    "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "deploy": "next build --webpack && gh-pages -d out --dotfiles"
+    "deploy": "next build && gh-pages -d out --dotfiles"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",
