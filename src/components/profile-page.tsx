@@ -18,15 +18,17 @@
  *   - Button         → @/components/ui/button
  */
 
-import { useEffect, useState, useSyncExternalStore } from "react";
-import { Plus, RotateCcw } from "lucide-react";
+import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
+import { Loader2, Plus, RotateCcw } from "lucide-react";
 import {
   addDoc,
   collection,
+  getDocs,
   onSnapshot,
   orderBy,
   query,
   serverTimestamp,
+  type QueryDocumentSnapshot,
 } from "firebase/firestore";
 
 import { db } from "@/lib/firebase";
@@ -94,15 +96,18 @@ function resetData() {
   saveData(MOCK_DATA);
 }
 
-function mergeLinks(localLinks: LinkItem[], remoteLinks: LinkItem[]): LinkItem[] {
-  const linkMap = new Map<string, LinkItem>();
-  for (const link of localLinks) {
-    linkMap.set(link.id, link);
-  }
-  for (const link of remoteLinks) {
-    linkMap.set(link.id, link);
-  }
-  return Array.from(linkMap.values());
+function mapDocsToLinkItems(docs: QueryDocumentSnapshot[]): LinkItem[] {
+  return docs.map((docSnap, idx) => {
+    const docData = docSnap.data({ serverTimestamps: "estimate" });
+    return {
+      id: docSnap.id,
+      title: docData.title ?? "",
+      url: docData.url ?? "",
+      emoji: docData.emoji || undefined,
+      isActive: docData.isActive ?? true,
+      order: typeof docData.order === "number" ? docData.order : idx + 1,
+    };
+  });
 }
 
 // ─── 메인 컴포넌트 ────────────────────────────────────────────────────────────
@@ -110,6 +115,7 @@ function mergeLinks(localLinks: LinkItem[], remoteLinks: LinkItem[]): LinkItem[]
 export default function ProfilePage() {
   const data = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
   const [firestoreLinks, setFirestoreLinks] = useState<LinkItem[]>([]);
+  const [isLoadingLinks, setIsLoadingLinks] = useState(true);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
 
@@ -118,32 +124,34 @@ export default function ProfilePage() {
     setTimeout(() => setToastMessage(null), 2500);
   };
 
-  // Firestore(users/anonymous/links) 실시간 구독
+  // Firestore(users/anonymous/links)에서 createdAt 최신순으로 링크 목록 조회
+  const fetchLinks = useCallback(async () => {
+    try {
+      const linksRef = collection(db, FIRESTORE_LINKS_PATH);
+      const q = query(linksRef, orderBy("createdAt", "desc"));
+      const snapshot = await getDocs(q);
+      setFirestoreLinks(mapDocsToLinkItems(snapshot.docs));
+    } catch (error) {
+      console.error("Firestore 링크 목록 조회 오류:", error);
+    } finally {
+      setIsLoadingLinks(false);
+    }
+  }, []);
+
+  // 페이지 로드 시 Firestore에서 링크 불러오기 및 실시간 동기화 (createdAt 최신순)
   useEffect(() => {
     const linksRef = collection(db, FIRESTORE_LINKS_PATH);
-    const q = query(linksRef, orderBy("order", "asc"));
+    const q = query(linksRef, orderBy("createdAt", "desc"));
 
     const unsubscribe = onSnapshot(
       q,
       (snapshot) => {
-        const fetchedLinks: LinkItem[] = snapshot.docs.map((docSnap, idx) => {
-          const docData = docSnap.data();
-          return {
-            id: docSnap.id,
-            title: docData.title ?? "",
-            url: docData.url ?? "",
-            emoji: docData.emoji || undefined,
-            isActive: docData.isActive ?? true,
-            order:
-              typeof docData.order === "number"
-                ? docData.order
-                : MOCK_DATA.links.length + idx + 1,
-          };
-        });
-        setFirestoreLinks(fetchedLinks);
+        setFirestoreLinks(mapDocsToLinkItems(snapshot.docs));
+        setIsLoadingLinks(false);
       },
       (error) => {
         console.error("Firestore 링크 목록 구독 오류:", error);
+        setIsLoadingLinks(false);
       }
     );
 
@@ -152,16 +160,16 @@ export default function ProfilePage() {
 
   const handleReset = () => {
     resetData();
+    void fetchLinks();
     showToast("초기 데이터로 복원되었습니다");
   };
 
   const handleAddLink = async (formData: AddLinkFormData) => {
     if (!data) return;
 
-    const mergedLinks = mergeLinks(data.links, firestoreLinks);
     const nextOrder =
-      mergedLinks.length > 0
-        ? Math.max(...mergedLinks.map((l) => l.order)) + 1
+      firestoreLinks.length > 0
+        ? Math.max(...firestoreLinks.map((l) => l.order)) + 1
         : 1;
 
     try {
@@ -184,9 +192,12 @@ export default function ProfilePage() {
         order: nextOrder,
       };
 
-      setFirestoreLinks((prev) =>
-        prev.some((l) => l.id === newLink.id) ? prev : [...prev, newLink]
-      );
+      // 최신순(createdAt desc)이므로 새 링크를 목록 최상단에 즉시 반영 후 재조회
+      setFirestoreLinks((prev) => [
+        newLink,
+        ...prev.filter((l) => l.id !== newLink.id),
+      ]);
+      await fetchLinks();
 
       showToast(
         formData.isActive
@@ -210,12 +221,9 @@ export default function ProfilePage() {
   }
 
   const { profile } = data;
-  const links = mergeLinks(data.links, firestoreLinks);
 
-  // isActive: true 인 링크만, order 오름차순 정렬 (PRD §3.3, §2.3)
-  const activeLinks = links
-    .filter((l) => l.isActive)
-    .sort((a, b) => a.order - b.order);
+  // isActive: true 인 링크만 표시 (Firestore 쿼리에서 createdAt 내림차순 정렬 완료)
+  const activeLinks = firestoreLinks.filter((l) => l.isActive);
 
   // Fallback 이니셜: displayName 첫 글자
   const avatarFallback = profile.displayName.charAt(0);
@@ -273,7 +281,12 @@ export default function ProfilePage() {
 
           {/* ── 링크 카드 목록 (PRD §3.3) ────────────────────── */}
           <main className="flex-1 flex flex-col gap-3 px-5 py-6">
-            {activeLinks.length === 0 ? (
+            {isLoadingLinks && activeLinks.length === 0 ? (
+              <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground py-10">
+                <Loader2 className="size-4 animate-spin" />
+                <span>링크를 불러오는 중…</span>
+              </div>
+            ) : activeLinks.length === 0 ? (
               <p className="text-center text-sm text-muted-foreground py-10">
                 등록된 링크가 없습니다.
               </p>
