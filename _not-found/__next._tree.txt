@@ -1,5 +1,4 @@
-:HL["/mylink/_next/static/css/95178f4d1bfd1079.css","style"]
-:HL["/mylink/_next/static/css/e5f07938e7c34e36.css","style"]
+:HL["/mylink/_next/static/chunks/3zmitp95vvznu.css","style"]
 2:[["children",{"s":"__PAGE__","h":160}]]
-1:[["children",{"s":"_not-found","h":96,"c":"$Q2"}]]
-0:{"b":"-x-Y8T7PDPR34FvXZX3jq","t":{"t":{"s":"","h":80,"c":"$Q1"}}}
+1:[["children",{"s":"/_not-found","h":96,"c":"$Q2"}]]
+0:{"b":"0z9dBiXF5CH5nDe3GNjbz","t":{"t":{"s":"","h":80,"c":"$Q1"}}}
