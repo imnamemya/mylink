@@ -15,12 +15,12 @@ export default function Home() {
 
           {/* 태그 / 신분 */}
           <span className="mt-2 inline-flex items-center rounded-full bg-zinc-100 px-3 py-1 text-xs font-medium text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400">
-            Student & Learner
+            Software Engineer
           </span>
 
           {/* 소개글 */}
           <p className="mt-4 text-base leading-relaxed text-zinc-600 dark:text-zinc-300">
-            안녕하세요! 바이브 코딩을 배우고 있는 대학생입니다.
+            직관적인 사용자 경험과 깔끔한 코드를 지향하는 개발자입니다. 복잡한 문제를 단순하게 해결하고 지속적으로 성장하는 과정을 즐깁니다.
           </p>
 
           {/* 구분선 */}
