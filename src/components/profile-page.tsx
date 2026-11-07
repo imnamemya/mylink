@@ -23,11 +23,14 @@ import { Loader2, Plus, RotateCcw } from "lucide-react";
 import {
   addDoc,
   collection,
+  deleteDoc,
+  doc,
   getDocs,
   onSnapshot,
   orderBy,
   query,
   serverTimestamp,
+  updateDoc,
   type QueryDocumentSnapshot,
 } from "firebase/firestore";
 
@@ -39,6 +42,7 @@ import { LinkCard } from "@/components/ui/link-card";
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
 import { AddLinkDialog, type AddLinkFormData } from "@/components/add-link-dialog";
+import { DeleteLinkDialog } from "@/components/delete-link-dialog";
 
 const STORAGE_KEY = "mylink";
 const FIRESTORE_LINKS_PATH = "users/anonymous/links";
@@ -118,6 +122,7 @@ export default function ProfilePage() {
   const [isLoadingLinks, setIsLoadingLinks] = useState(true);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [deletingLink, setDeletingLink] = useState<LinkItem | null>(null);
 
   const showToast = (message: string) => {
     setToastMessage(message);
@@ -211,6 +216,62 @@ export default function ProfilePage() {
     }
   };
 
+  // Firestore(users/anonymous/links/{linkId}) 링크 수정
+  const handleUpdateLink = async (linkId: string, formData: AddLinkFormData) => {
+    try {
+      const linkDocRef = doc(db, FIRESTORE_LINKS_PATH, linkId);
+      await updateDoc(linkDocRef, {
+        title: formData.title,
+        url: formData.url,
+        emoji: formData.emoji ?? "",
+        isActive: formData.isActive,
+        updatedAt: serverTimestamp(),
+      });
+
+      setFirestoreLinks((prev) =>
+        prev.map((l) =>
+          l.id === linkId
+            ? {
+                ...l,
+                title: formData.title,
+                url: formData.url,
+                emoji: formData.emoji,
+                isActive: formData.isActive,
+              }
+            : l
+        )
+      );
+      await fetchLinks();
+
+      showToast(
+        formData.isActive
+          ? "링크가 Firestore에 수정되었습니다!"
+          : "링크가 비공개로 수정되었습니다 (퍼블릭 뷰 숨김)"
+      );
+    } catch (error) {
+      console.error("Firestore 링크 수정 실패:", error);
+      showToast("링크 수정 중 오류가 발생했습니다. 다시 시도해주세요.");
+      throw error;
+    }
+  };
+
+  // Firestore(users/anonymous/links/{linkId}) 링크 삭제
+  const handleDeleteLink = async (linkId: string) => {
+    try {
+      const linkDocRef = doc(db, FIRESTORE_LINKS_PATH, linkId);
+      await deleteDoc(linkDocRef);
+
+      setFirestoreLinks((prev) => prev.filter((l) => l.id !== linkId));
+      await fetchLinks();
+
+      showToast("링크가 삭제되었습니다.");
+    } catch (error) {
+      console.error("Firestore 링크 삭제 실패:", error);
+      showToast("링크 삭제 중 오류가 발생했습니다. 다시 시도해주세요.");
+      throw error;
+    }
+  };
+
   // 데이터 로드 전 최소 플레이스홀더 — 레이아웃 시프트 방지
   if (!data) {
     return (
@@ -297,6 +358,9 @@ export default function ProfilePage() {
                   emoji={link.emoji}
                   title={link.title}
                   url={link.url}
+                  isActive={link.isActive}
+                  onEdit={(formData) => handleUpdateLink(link.id, formData)}
+                  onDelete={() => setDeletingLink(link)}
                 />
               ))
             )}
@@ -359,6 +423,16 @@ export default function ProfilePage() {
         open={isAddDialogOpen}
         onOpenChange={setIsAddDialogOpen}
         onAddLink={handleAddLink}
+      />
+
+      {/* ── 링크 삭제 확인 다이얼로그 ─────────────────────────── */}
+      <DeleteLinkDialog
+        link={deletingLink}
+        open={!!deletingLink}
+        onOpenChange={(open) => {
+          if (!open) setDeletingLink(null);
+        }}
+        onConfirmDelete={handleDeleteLink}
       />
     </>
   );
