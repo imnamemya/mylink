@@ -48,6 +48,8 @@ interface LinkCardProps {
   url: string;
   /** 공개(활성화) 상태 */
   isActive?: boolean;
+  /** 마지막 수정 시각 (ISO 문자열) */
+  updatedAt?: string;
   /** 추가 className */
   className?: string;
   /** 인라인 수정 저장 핸들러 */
@@ -56,17 +58,32 @@ interface LinkCardProps {
   onDelete?: () => void;
 }
 
+function formatUpdatedAt(isoString?: string): string | null {
+  if (!isoString) return null;
+  const date = new Date(isoString);
+  if (Number.isNaN(date.getTime())) return null;
+  return new Intl.DateTimeFormat("ko-KR", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+}
+
 export function LinkCard({
   emoji,
   title,
   url,
   isActive = true,
+  updatedAt,
   className,
   onEdit,
   onDelete,
 }: LinkCardProps) {
   const [isEditing, setIsEditing] = useState(false);
   const fieldIdPrefix = useId();
+  const formattedUpdatedAt = formatUpdatedAt(updatedAt);
 
   const {
     register,
@@ -159,6 +176,11 @@ export function LinkCard({
                 <Pencil className="size-3.5" />
                 링크 수정
               </span>
+              {formattedUpdatedAt && (
+                <span className="text-[11px] text-muted-foreground">
+                  최근 수정: {formattedUpdatedAt}
+                </span>
+              )}
             </div>
 
             {/* ── 링크 제목 필드 ── */}
@@ -377,10 +399,17 @@ export function LinkCard({
             {emoji || "🔗"}
           </span>
 
-          {/* 타이틀 — 14px / 400 (DESIGN.md utility 실측) */}
-          <span className="flex-1 text-sm font-normal text-foreground leading-snug line-clamp-2 break-words">
-            {title}
-          </span>
+          {/* 타이틀 및 수정 시각 — 14px / 400 (DESIGN.md utility 실측) */}
+          <div className="flex-1 min-w-0">
+            <span className="block text-sm font-normal text-foreground leading-snug line-clamp-2 break-words">
+              {title}
+            </span>
+            {formattedUpdatedAt && (
+              <span className="mt-0.5 block text-[11px] text-muted-foreground leading-tight">
+                수정됨 · {formattedUpdatedAt}
+              </span>
+            )}
+          </div>
 
           {/* 외부 이동 아이콘 (PRD §3.3) */}
           <ExternalLink
@@ -389,29 +418,29 @@ export function LinkCard({
           />
         </a>
 
-        {/* 우측: 항상 표시되는 수정 / 삭제 버튼 */}
-        <div className="flex items-center gap-1 shrink-0 pl-1 border-l border-border/60">
+        {/* 우측: 항상 표시되는 수정 / 삭제 아이콘 버튼 */}
+        <div className="flex items-center gap-0.5 shrink-0">
           <Button
             type="button"
-            variant="outline"
-            size="xs"
+            variant="ghost"
+            size="icon-sm"
             onClick={handleStartEdit}
             aria-label={`${title} 수정`}
-            className="cursor-pointer text-muted-foreground hover:text-foreground"
+            title="수정"
+            className="cursor-pointer border-transparent text-muted-foreground hover:bg-primary/10 hover:text-primary transition-colors"
           >
-            <Pencil className="size-3" />
-            <span>수정</span>
+            <Pencil className="size-3.5" />
           </Button>
           <Button
             type="button"
-            variant="destructive"
-            size="xs"
+            variant="ghost"
+            size="icon-sm"
             onClick={onDelete}
             aria-label={`${title} 삭제`}
-            className="cursor-pointer"
+            title="삭제"
+            className="cursor-pointer border-transparent text-muted-foreground hover:bg-red-500/10 hover:text-red-600 dark:hover:bg-red-500/20 dark:hover:text-red-400 transition-colors"
           >
-            <Trash2 className="size-3" />
-            <span>삭제</span>
+            <Trash2 className="size-3.5" />
           </Button>
         </div>
       </CardContent>

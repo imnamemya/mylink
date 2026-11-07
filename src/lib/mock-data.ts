@@ -29,6 +29,7 @@ export interface LinkItem {
   emoji?: string;
   isActive: boolean;
   order: number;
+  updatedAt?: string;
 }
 
 export interface Profile {

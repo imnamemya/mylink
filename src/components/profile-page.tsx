@@ -103,6 +103,14 @@ function resetData() {
 function mapDocsToLinkItems(docs: QueryDocumentSnapshot[]): LinkItem[] {
   return docs.map((docSnap, idx) => {
     const docData = docSnap.data({ serverTimestamps: "estimate" });
+    const rawUpdatedAt = docData.updatedAt;
+    const updatedAt =
+      rawUpdatedAt && typeof rawUpdatedAt.toDate === "function"
+        ? rawUpdatedAt.toDate().toISOString()
+        : typeof rawUpdatedAt === "string"
+          ? rawUpdatedAt
+          : undefined;
+
     return {
       id: docSnap.id,
       title: docData.title ?? "",
@@ -110,6 +118,7 @@ function mapDocsToLinkItems(docs: QueryDocumentSnapshot[]): LinkItem[] {
       emoji: docData.emoji || undefined,
       isActive: docData.isActive ?? true,
       order: typeof docData.order === "number" ? docData.order : idx + 1,
+      updatedAt,
     };
   });
 }
@@ -228,6 +237,7 @@ export default function ProfilePage() {
         updatedAt: serverTimestamp(),
       });
 
+      const nowIso = new Date().toISOString();
       setFirestoreLinks((prev) =>
         prev.map((l) =>
           l.id === linkId
@@ -237,6 +247,7 @@ export default function ProfilePage() {
                 url: formData.url,
                 emoji: formData.emoji,
                 isActive: formData.isActive,
+                updatedAt: nowIso,
               }
             : l
         )
@@ -359,6 +370,7 @@ export default function ProfilePage() {
                   title={link.title}
                   url={link.url}
                   isActive={link.isActive}
+                  updatedAt={link.updatedAt}
                   onEdit={(formData) => handleUpdateLink(link.id, formData)}
                   onDelete={() => setDeletingLink(link)}
                 />
