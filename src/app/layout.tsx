@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "마이링크 (MyLink)",
-  description: "마이링크 웹 애플리케이션",
+  title: "손현우 | 마이링크 (MyLink)",
+  description: "소프트웨어 엔지니어 손현우의 프로필 및 링크",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
